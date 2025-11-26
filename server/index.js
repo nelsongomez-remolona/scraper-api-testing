@@ -94,10 +94,10 @@ app.post('/api/search', async (req, res) => {
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static('build'));
+  app.use(express.static('dist'));
 
   app.get('*', (req, res) => {
-    res.sendFile('index.html', { root: 'build' });
+    res.sendFile('index.html', { root: 'dist' });
   });
 }
 
