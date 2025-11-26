@@ -99,14 +99,9 @@ app.post('/api/search', async (req, res) => {
 
 // Serve static files - ALWAYS (not just in production)
 const distPath = path.join(__dirname, '../dist');
-app.use(express.static(distPath));
 
-// Catch-all route to serve index.html for client-side routing
-app.get('*', (req, res) => {
-  res.sendFile(path.join(distPath, 'index.html'));
-});
-
-app.listen(PORT, () => {
+// Listen on all interfaces (0.0.0.0 required for Railway)
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📡 API endpoint: http://localhost:${PORT}/api/search`);
   console.log(`🔑 SerpAPI configured: ${SERPAPI_KEY ? 'Yes' : 'No'}`);
