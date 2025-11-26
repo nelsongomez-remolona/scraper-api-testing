@@ -1,6 +1,11 @@
 import express from 'express';
 import cors from 'cors';
 import fetch from 'node-fetch';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -92,17 +97,18 @@ app.post('/api/search', async (req, res) => {
   }
 });
 
-// Serve static files in production
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static('dist'));
+// Serve static files - ALWAYS (not just in production)
+const distPath = path.join(__dirname, '../dist');
+app.use(express.static(distPath));
 
-  app.get('*', (req, res) => {
-    res.sendFile('index.html', { root: 'dist' });
-  });
-}
+// Catch-all route to serve index.html for client-side routing
+app.get('*', (req, res) => {
+  res.sendFile(path.join(distPath, 'index.html'));
+});
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📡 API endpoint: http://localhost:${PORT}/api/search`);
   console.log(`🔑 SerpAPI configured: ${SERPAPI_KEY ? 'Yes' : 'No'}`);
+  console.log(`📁 Serving static files from: ${distPath}`);
 });
