@@ -1,109 +1,220 @@
-import express from 'express';
-import cors from 'cors';
-import fetch from 'node-fetch';
-import path from 'path';
-import { fileURLToPath } from 'url';
+// ULTRA-MINIMAL test version - if this doesn't log, Railway has a bigger problem
+console.log('========================================');
+console.log('🚀 STARTUP: Node is running!');
+console.log('========================================');
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Force flush stdout
+process.stdout.write('STDOUT: Process starting...\n');
+process.stderr.write('STDERR: Process starting...\n');
+
+// Add error handling FIRST
+process.on('uncaughtException', (error) => {
+  console.error('========================================');
+  console.error('❌ UNCAUGHT EXCEPTION:');
+  console.error(error);
+  console.error('========================================');
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('========================================');
+  console.error('❌ UNHANDLED REJECTION:');
+  console.error(reason);
+  console.error('========================================');
+  process.exit(1);
+});
+
+console.log('Loading express...');
+const express = require('express');
+const path = require('path');
+console.log('✅ Express loaded');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
-const SERPAPI_KEY = process.env.SERPAPI_KEY;
+const PORT = process.env.PORT || 3000;
 
-// Middleware
-app.use(cors());
 app.use(express.json());
 
-// Health check endpoint
+// Serve static files from dist folder (frontend)
+app.use(express.static(path.join(__dirname, 'dist')));
+
+// Health check
 app.get('/health', (req, res) => {
+  console.log('Health check called');
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// SerpAPI job search endpoint
+// Simple test endpoint
+app.get('/test', (req, res) => {
+  console.log('Test endpoint called');
+  res.json({ 
+    message: 'Server is working!',
+    env: {
+      hasSerpApi: !!process.env.SERPAPI_KEY,
+      hasSpreadsheetId: !!process.env.SPREADSHEET_ID,
+      hasGoogleCreds: !!process.env.GOOGLE_CREDENTIALS
+    }
+  });
+});
+
+// Test scraper module loading
+app.get('/test-scraper', (req, res) => {
+  try {
+    console.log('Testing scraper module load...');
+    const scraperModule = require('./scraper');
+    console.log('✅ Scraper module loaded!');
+    console.log('Available exports:', Object.keys(scraperModule));
+    res.json({
+      success: true,
+      exports: Object.keys(scraperModule),
+      hasRunJobScraper: !!scraperModule.runJobScraper,
+      hasRunGeneralJobScraper: !!scraperModule.runGeneralJobScraper
+    });
+  } catch (error) {
+    console.error('❌ Failed to load scraper module:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      stack: error.stack
+    });
+  }
+});
+
+// Scraper endpoints - load modules only when called
+app.post('/api/scrape', async (req, res) => {
+  try {
+    console.log('=== /api/scrape endpoint called ===');
+    console.log('Loading scraper module...');
+    const scraperModule = require('./scraper');
+    console.log('Scraper module loaded successfully');
+    console.log('Available exports:', Object.keys(scraperModule));
+    
+    if (!scraperModule.runJobScraper) {
+      throw new Error('runJobScraper function not found in scraper module!');
+    }
+    
+    console.log('Executing runJobScraper...');
+    const result = await scraperModule.runJobScraper();
+    console.log('Scraper completed successfully');
+    res.json(result);
+  } catch (error) {
+    console.error('❌ Error in /api/scrape:', error.message);
+    console.error('Stack trace:', error.stack);
+    res.status(500).json({ 
+      success: false,
+      error: error.message,
+      stack: error.stack
+    });
+  }
+});
+
+app.post('/api/scrape/general', async (req, res) => {
+  try {
+    console.log('=== /api/scrape/general endpoint called ===');
+    console.log('Loading scraper module...');
+    const scraperModule = require('./scraper');
+    console.log('Scraper module loaded successfully');
+    console.log('Available exports:', Object.keys(scraperModule));
+    
+    if (!scraperModule.runGeneralJobScraper) {
+      throw new Error('runGeneralJobScraper function not found in scraper module!');
+    }
+    
+    console.log('Executing runGeneralJobScraper...');
+    const result = await scraperModule.runGeneralJobScraper();
+    console.log('General scraper completed successfully');
+    res.json(result);
+  } catch (error) {
+    console.error('❌ Error in /api/scrape/general:', error.message);
+    console.error('Stack trace:', error.stack);
+    res.status(500).json({ 
+      success: false,
+      error: error.message,
+      stack: error.stack
+    });
+  }
+});
+
+// API Comparison Tool endpoints
 app.post('/api/search', async (req, res) => {
   try {
+    console.log('=== /api/search endpoint called ===');
     const { what, where, limit = 20 } = req.body;
-
+    
     if (!what || !where) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required parameters: what and where',
+        error: 'Missing required parameters: what and where'
       });
     }
 
-    if (!SERPAPI_KEY) {
-      return res.status(500).json({
-        success: false,
-        error: 'SERPAPI_KEY not configured on server',
-      });
-    }
+    // Use SerpAPI to search for jobs
+    const { getJson } = require('serpapi');
+    const query = `${what} ${where}`;
+    
+    const params = {
+      engine: 'google',
+      q: query + ' (site:boards.greenhouse.io OR site:jobs.lever.co OR site:jobs.ashbyhq.com OR site:linkedin.com/jobs)',
+      api_key: process.env.SERPAPI_KEY,
+      tbs: 'qdr:m',
+      num: Math.min(limit, 50),
+      hl: 'en',
+      gl: 'us',
+      device: 'desktop'
+    };
 
-    // Build SerpAPI request
-    const params = new URLSearchParams({
-      engine: 'google_jobs',
-      q: what,
+    const response = await getJson(params);
+    
+    const jobs = (response.organic_results || []).map(result => ({
+      title: result.title || 'Untitled',
+      company: result.displayed_link || 'Unknown',
       location: where,
-      api_key: SERPAPI_KEY,
-      num: limit.toString(),
-    });
-
-    const serpApiUrl = `https://serpapi.com/search?${params}`;
-
-    console.log('Calling SerpAPI for:', what, 'in', where);
-
-    const response = await fetch(serpApiUrl);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`SerpAPI returned ${response.status}: ${errorText}`);
-    }
-
-    const data = await response.json();
-
-    // Check for API errors
-    if (data.error) {
-      return res.status(500).json({
-        success: false,
-        error: data.error,
-      });
-    }
-
-    // Transform SerpAPI response to our format
-    const jobs = (data.jobs_results || []).map(job => ({
-      title: job.title,
-      company: job.company_name,
-      location: job.location,
-      description: job.description || job.snippet || '',
-      url: job.share_link || job.related_links?.[0]?.link || '',
-      postedDate: job.detected_extensions?.posted_at || job.posted_at,
-      salary: job.detected_extensions?.salary,
+      description: result.snippet || '',
+      url: result.link || '#',
+      postedDate: result.date || undefined
     }));
 
     res.json({
       success: true,
       jobs,
-      total: jobs.length,
-      count: jobs.length,
-      searchInfo: data.search_metadata,
+      total: response.search_information?.total_results || jobs.length,
+      count: jobs.length
     });
 
   } catch (error) {
-    console.error('SerpAPI error:', error);
+    console.error('❌ Error in /api/search:', error.message);
+    console.error('Stack trace:', error.stack);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to fetch jobs from SerpAPI',
+      error: error.message
     });
   }
 });
 
-// Serve static files - ALWAYS (not just in production)
-const distPath = path.join(__dirname, '../dist');
+console.log('Starting server...');
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log('========================================');
+  console.log(`✅ Server running on port ${PORT}`);
+  console.log(`✅ Binding to 0.0.0.0:${PORT}`);
+  console.log('Available endpoints:');
+  console.log('  GET  /health');
+  console.log('  GET  /test');
+  console.log('  GET  /test-scraper');
+  console.log('  POST /api/scrape');
+  console.log('  POST /api/scrape/general');
+  console.log('  POST /api/search');
+  console.log('  Frontend: / (static files from dist/)');
+  console.log('========================================');
+});
 
-// Listen on all interfaces (0.0.0.0 required for Railway)
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📡 API endpoint: http://localhost:${PORT}/api/search`);
-  console.log(`🔑 SerpAPI configured: ${SERPAPI_KEY ? 'Yes' : 'No'}`);
-  console.log(`📁 Serving static files from: ${distPath}`);
+server.on('error', (error) => {
+  console.error('========================================');
+  console.error('❌ SERVER ERROR:');
+  console.error(error);
+  console.error('========================================');
+  process.exit(1);
+});
+
+// Serve index.html for all other routes (SPA support)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
