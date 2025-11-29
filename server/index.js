@@ -27,6 +27,7 @@ process.on('unhandledRejection', (reason) => {
 console.log('Loading express...');
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 console.log('✅ Express loaded');
 
 const app = express();
@@ -34,9 +35,29 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
+// Check if dist folder exists
+const distPath = path.join(__dirname, '../dist');
+console.log('========================================');
+console.log('📁 Checking dist folder...');
+console.log('Expected path:', distPath);
+if (fs.existsSync(distPath)) {
+  console.log('✅ dist folder exists');
+  const files = fs.readdirSync(distPath);
+  console.log('Files in dist:', files);
+  if (fs.existsSync(path.join(distPath, 'index.html'))) {
+    console.log('✅ index.html found');
+  } else {
+    console.log('❌ index.html NOT found');
+  }
+} else {
+  console.log('❌ dist folder NOT found');
+  console.log('This means the build did not run or failed');
+}
+console.log('========================================');
+
 // Serve static files from dist folder (frontend)
 // Note: server is in server/ directory, dist is in parent directory
-app.use(express.static(path.join(__dirname, '../dist')));
+app.use(express.static(distPath));
 
 // Health check
 app.get('/health', (req, res) => {
@@ -217,5 +238,10 @@ server.on('error', (error) => {
 
 // Serve index.html for all other routes (SPA support)
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../dist', 'index.html'));
+  const indexPath = path.join(distPath, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(404).send('Frontend not built - dist/index.html not found. Make sure to run "npm run build" first.');
+  }
 });
