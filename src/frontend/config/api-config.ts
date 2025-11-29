@@ -8,7 +8,7 @@ export const API_CONFIG = {
   // Get credentials from: https://developer.adzuna.com/
   // Set VITE_ADZUNA_APP_ID and VITE_ADZUNA_APP_KEY in Railway
   adzuna: {
-    appId: import.meta.env.VITE_ADZUNA_APP_ID || '',
+    appId: import.meta.env.VITE_ADZUNA_APP_ID || '0875fd8c',
     appKey: import.meta.env.VITE_ADZUNA_APP_KEY || '',
     enabled: true,
   },
