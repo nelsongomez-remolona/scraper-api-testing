@@ -35,6 +35,12 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
+// Log ALL incoming requests
+app.use((req, res, next) => {
+  console.log(`📥 ${new Date().toISOString()} ${req.method} ${req.url} from ${req.ip}`);
+  next();
+});
+
 // Check if dist folder exists
 const distPath = path.join(__dirname, '../dist');
 console.log('========================================');
