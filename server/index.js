@@ -35,7 +35,8 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 
 // Serve static files from dist folder (frontend)
-app.use(express.static(path.join(__dirname, 'dist')));
+// Note: server is in server/ directory, dist is in parent directory
+app.use(express.static(path.join(__dirname, '../dist')));
 
 // Health check
 app.get('/health', (req, res) => {
@@ -216,5 +217,5 @@ server.on('error', (error) => {
 
 // Serve index.html for all other routes (SPA support)
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+  res.sendFile(path.join(__dirname, '../dist', 'index.html'));
 });
