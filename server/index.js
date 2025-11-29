@@ -212,6 +212,17 @@ app.post('/api/search', async (req, res) => {
   }
 });
 
+// Serve index.html for all other routes (SPA support)
+// This MUST be defined BEFORE app.listen() and AFTER all API routes
+app.get('*', (req, res) => {
+  const indexPath = path.join(distPath, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(404).send('Frontend not built - dist/index.html not found. Make sure to run "npm run build" first.');
+  }
+});
+
 console.log('Starting server...');
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log('========================================');
@@ -234,14 +245,4 @@ server.on('error', (error) => {
   console.error(error);
   console.error('========================================');
   process.exit(1);
-});
-
-// Serve index.html for all other routes (SPA support)
-app.get('*', (req, res) => {
-  const indexPath = path.join(distPath, 'index.html');
-  if (fs.existsSync(indexPath)) {
-    res.sendFile(indexPath);
-  } else {
-    res.status(404).send('Frontend not built - dist/index.html not found. Make sure to run "npm run build" first.');
-  }
 });
